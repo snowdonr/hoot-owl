@@ -2,9 +2,11 @@ from __future__ import annotations
 import typing
 import enum
 import random
+import numpy
 import collections.abc
 
 from . import rules
+from . import player
 
 
 class CardColors(enum.Enum):
@@ -30,17 +32,36 @@ class Board(object):
     source_map = {"y": CardColors.YELLOW, "g": CardColors.GREEN, "o": CardColors.ORANGE,
                   "b": CardColors.BLUE, "p": CardColors.PURPLE, "r": CardColors.RED}
 
-    def __init__(self, rules: rules.Rules):
+    def __init__(self, ruleset: rules.Rules, add_deck=True, add_players=True, no_sun_cards=True):
+        self.rules = ruleset
         self.goal_position = None  # value set with path
+        self.players = []
         self.path = collections.defaultdict(list)  # Index = Color, Value = list of ints
         self.owls = []
-        for i in range(rules.number_of_owls):
+        for i in range(ruleset.number_of_owls):
             self.owls.append(OwlToken(i))
+        if add_deck:
+            self._startup_create_deck(no_sun_cards)
+        else:
+            self.deck = None
+        if add_players:
+            self._startup_add_players()
         self.finished_owls = 0
         self.sun_position = 0
-        self.startup_path_read_order()
+        self._startup_path_read_order()
 
-    def startup_path_read_order(self):
+    def _startup_create_deck(self, no_sun_cards: bool):
+        self.deck = Deck(self.rules)
+        self.deck.create(no_sun_cards=no_sun_cards)
+        self.deck.shuffle()
+    
+    def _startup_add_players(self):
+        for i in range(self.rules.player_count):
+            new_player = player.Player(self, self.rules)
+            new_player.hand.draw_up()
+            self.players.append(new_player)
+
+    def _startup_path_read_order(self):
         ''' Use the source_order string to setup internal representations '''
         for index, letter in enumerate(self.source_order):
             color_value = self.source_map[letter]
@@ -48,6 +69,15 @@ class Board(object):
         for color_positions in self.path.values():
             color_positions.append(len(self.source_order))
         self.goal_position = len(self.source_order)
+
+    def status_count(self):
+        ''' Track how close we are to finishing (the total position of all owls) 
+        Only directly comparable with equivalent rules
+        '''
+        return sum([o.position for o in self.owls])
+
+    def is_finished(self):
+        return numpy.all([o.position==self.goal_position for o in self.owls])
 
     def advance(self, owl: OwlToken, used_card: Card):
         current_position = owl.position
@@ -89,12 +119,13 @@ class Deck(collections.abc.Sequence):
         self._position = 0
         self._card_stack = []
 
-    def create(self):
+    def create(self, no_sun_cards=False):
         rules = self._rules
         for card_type in CardColors:
             if card_type is not CardColors.ANY and card_type is not CardColors.SUN:
                 self._card_stack.extend([Card(card_type)]*rules.card_color_multiple)
-        self._card_stack.extend([Card(CardColors.SUN)]*rules.number_of_suns)
+        if not no_sun_cards:
+            self._card_stack.extend([Card(CardColors.SUN)]*rules.number_of_suns)
 
     def draw_top_card(self) -> Card:
         if self._position >= len(self._card_stack):

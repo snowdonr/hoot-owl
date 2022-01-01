@@ -12,14 +12,13 @@ from owl import rules
 
 
 class Test(unittest.TestCase):
-    deck = None
     ruleset = None
 
     def setUp(self):
         self.ruleset = rules.Rules()
         self.deck = board.Deck(self.ruleset)
         self.deck.create()
-        self.board = board.Board(self.ruleset)
+        self.simple_board = board.Board(self.ruleset, add_deck=False, add_players=False)
 
     def tearDown(self):
         pass
@@ -66,18 +65,18 @@ class Test(unittest.TestCase):
         # TODO: Make sure the order is different
 
     def test_board_init(self):
-        for position_list in self.board.path.values():
+        for position_list in self.simple_board.path.values():
             self.assertTrue(6 < len(position_list) < 9)
             last_position = -5
             for position in position_list[:-1]:
                 self.assertTrue(position-last_position > 2)
                 last_position = position
 
-        for index, owl in enumerate(self.board.owls):
+        for index, owl in enumerate(self.simple_board.owls):
             self.assertTrue(owl.position == index)
 
     def test_board_advance(self):
-        test_owl = self.board.owls[0]
+        test_owl = self.simple_board.owls[0]
         start_position = test_owl.position
         used_positions = []
         for target_color in board.CardColors:
@@ -85,27 +84,27 @@ class Test(unittest.TestCase):
                 continue
             example_card = board.Card(target_color)
             prior_position = test_owl.position
-            self.board.advance(test_owl, example_card)
+            self.simple_board.advance(test_owl, example_card)
             post_position = test_owl.position
             self.assertTrue(post_position > prior_position)  # Does not apply at goal
-            self.assertTrue(self.board.color_at(post_position) == target_color)
+            self.assertTrue(self.simple_board.color_at(post_position) == target_color)
             self.assertFalse(test_owl.position in used_positions)
             used_positions.append(test_owl.position)
             test_owl.position = start_position  # TODO: Track in the board
 
 
     def test_board_skip(self):
-        first_owl = self.board.owls[0]
-        second_owl = self.board.owls[1]
+        first_owl = self.simple_board.owls[0]
+        second_owl = self.simple_board.owls[1]
         # In order to always skip over a position, the rear owl must initally be neighbouring the front owl
         self.assertTrue(first_owl.position-second_owl.position == -1)
         target_color = board.CardColors.ORANGE
         example_card = board.Card(target_color)
-        self.board.advance(first_owl, example_card)
-        self.board.advance(second_owl, example_card)
+        self.simple_board.advance(first_owl, example_card)
+        self.simple_board.advance(second_owl, example_card)
         self.assertTrue(first_owl.position < second_owl.position)
-        self.assertTrue(self.board.color_at(first_owl.position) == target_color)
-        self.assertTrue(self.board.color_at(second_owl.position) == target_color)
+        self.assertTrue(self.simple_board.color_at(first_owl.position) == target_color)
+        self.assertTrue(self.simple_board.color_at(second_owl.position) == target_color)
 
 
 if __name__ == "__main__":
