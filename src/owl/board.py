@@ -4,7 +4,7 @@ import enum
 import random
 import collections.abc
 
-from . import rules
+import rules
 
 
 class CardColors(enum.Enum):
@@ -52,24 +52,24 @@ class Board(object):
     def advance(self, owl: OwlToken, used_card: Card):
         current_position = owl.position
         position_list = self.path[used_card.color]
-        for position in position_list:
-            if position <= current_position:  # TODO: improve linear search if board is large
+        for candidate_position in position_list:
+            if candidate_position <= current_position:  # TODO: improve linear search if board is large
                 continue
-            if position == self.goal_position:
-                owl.position = position
+            if candidate_position == self.goal_position:
+                owl.position = candidate_position
                 self.finished_owls += 1
                 break  # should be done the loop regardless
             found = False
             for other_owl in self.owls:
-                if other_owl.position == position:
+                if other_owl.position == candidate_position:
                     found = True
                     break
             if found:  # this space is occupied
                 continue
-            owl.position = position  # otherwise update to this spot
+            owl.position = candidate_position  # otherwise update to this spot
             break
 
-    def color_at(self, position: int) -> typing.Optional(CardColors):
+    def color_at(self, position: int) -> CardColors | None:
         for color, position_list in self.path.items():
             if position in position_list:
                 return color
@@ -77,7 +77,7 @@ class Board(object):
 
 
 class OwlToken(object):
-    ''' The items that a moved on the board on each turn '''
+    ''' The items that are moved on the board on each turn '''
     def __init__(self, start_position: int):
         self.position = start_position
 
@@ -90,30 +90,45 @@ class Deck(collections.abc.Sequence):
         self._card_stack = []
 
     def create(self):
+        ''' Build the deck according to the rules provided, with colours grouped and Suns last '''
         rules = self._rules
         for card_type in CardColors:
             if card_type is not CardColors.ANY and card_type is not CardColors.SUN:
                 self._card_stack.extend([Card(card_type)]*rules.card_color_multiple)
         self._card_stack.extend([Card(CardColors.SUN)]*rules.number_of_suns)
 
-    def draw_top_card(self) -> Card:
+    def draw_top_card(self) -> Card | None:
+        ''' Draw the next card from the deck, or None if empty '''
         if self._position >= len(self._card_stack):
             return None
         result = self._card_stack[self._position]
         self._position += 1
         return result
 
-    def shuffle(self):
-        self._position = 0
-        random.shuffle(self._card_stack)
+    def shuffle(self, seed: typing.Optional[int] = None):
+        """Reset the deck and randomize the order.
 
-    def __getitem__(self, index: int) -> Card:
+        If `seed` is provided the shuffle will be repeatable (uses a local
+        Random instance so it does not alter the global random state).
+        """
+        self._position = 0
+        if seed is None:
+            random.shuffle(self._card_stack)
+        else:
+            rnd = random.Random(seed)
+            rnd.shuffle(self._card_stack)
+
+    def __getitem__(self, index: slice[typing.Any, typing.Any, typing.Any] | int) -> typing.Sequence[Card]:
         ''' Does not change the "top card" position '''
-        if index >= len(self._card_stack):
-            raise IndexError('No more cards in deck')
-        return self._card_stack[index]
+        if isinstance(index, slice):
+            return self._card_stack[index]
+        if isinstance(index, int):
+            if abs(index) >= len(self._card_stack):
+                raise IndexError(f'No Cards available in deck at point {index}')
+            return self._card_stack[index]
 
     def __len__(self) -> int:
+        ''' Total number of cards in the deck, 0 if deck has not been created '''
         return len(self._card_stack)
 
 
